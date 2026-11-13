@@ -1,0 +1,57 @@
+name: exec-grade
+
+# Runs the test-execution grader on a GitHub runner, which has working Docker.
+# A push to main that touches the listed paths runs the arguments in ci/exec_grade_args.txt.
+# It can also be started by hand from the Actions tab.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "execgrade/**"
+      - "tests/**"
+      - "ci/exec_grade_args.txt"
+      - ".github/workflows/exec-grade.yml"
+  workflow_dispatch:
+    inputs:
+      args:
+        description: "Arguments for `python -m execgrade`"
+        default: "validate --exam exams/exam_bugs_context.jsonl --limit 3 --rm-image"
+
+jobs:
+  grade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests
+
+      - name: Run the grader
+        env:
+          ARGS_IN: ${{ github.event.inputs.args }}
+        run: |
+          ARGS="$ARGS_IN"
+          if [ -z "$ARGS" ]; then ARGS="$(grep -v '^#' ci/exec_grade_args.txt | grep -v '^$' | head -1)"; fi
+          echo "execgrade arguments: $ARGS"
+          docker version --format 'docker server {{.Server.Version}}'
+          df -h / | tail -1
+          python -m execgrade $ARGS
+
+      - name: Show results
+        if: always()
+        run: |
+          for f in results/exec/validity_*.json results/exec/grade_*.json; do
+            if [ -f "$f" ]; then echo "===== $f"; cat "$f"; echo; fi
+          done
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: exec-results
+          path: results/exec/

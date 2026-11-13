@@ -1,0 +1,3 @@
+# One line: the arguments passed to `python -m execgrade` on a push to exec-grader.
+# First check: on 3 bugs, the buggy code must FAIL its tests and the reference fix must PASS.
+validate --exam exams/exam_bugs_context.jsonl --limit 3 --rm-image
